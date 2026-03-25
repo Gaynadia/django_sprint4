@@ -14,14 +14,35 @@ from .forms import PostForm, CommentForm, UserForm
 POSTS_PER_PAGE = 10
 
 
+def get_published_posts_queryset():
+    return Post.published.select_related('category', 'location', 'author')
+
+
+def get_post_or_404(post_id, user=None):
+    base_qs = Post.objects.select_related('category', 'location', 'author')
+    if user and user.is_authenticated:
+        post = get_object_or_404(base_qs, id=post_id)
+        if post.author != user and (
+            not post.is_published
+            or not post.category.is_published
+            or post.pub_date > timezone.now()
+        ):
+            raise Http404
+        return post
+
+    return get_object_or_404(
+        base_qs.filter(
+            is_published=True,
+            category__is_published=True,
+            pub_date__lte=timezone.now()
+        ),
+        id=post_id
+    )
+
+
 def index(request):
     """Главная страница с пагинацией."""
-    posts = Post.objects.filter(
-        is_published=True,
-        category__is_published=True,
-        pub_date__lte=timezone.now()
-    ).select_related('category', 'location', 'author')
-
+    posts = get_published_posts_queryset()
     paginator = Paginator(posts, POSTS_PER_PAGE)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -35,10 +56,7 @@ def category_posts(request, category_slug):
     category = get_object_or_404(
         Category, slug=category_slug, is_published=True
     )
-    posts = category.post_set.filter(
-        is_published=True,
-        pub_date__lte=timezone.now()
-    ).select_related('location', 'author')
+    posts = Post.published.filter(category=category).select_related('location', 'author')
 
     paginator = Paginator(posts, POSTS_PER_PAGE)
     page_number = request.GET.get('page')
@@ -55,15 +73,11 @@ def profile(request, username):
     # Если это профиль текущего пользователя, показываем все его посты
     # иначе - только опубликованные
     if request.user == profile_user:
-        posts = profile_user.post_set.all().select_related(
+        posts = profile_user.posts.all().select_related(
             'category', 'location'
         )
     else:
-        posts = profile_user.post_set.filter(
-            is_published=True,
-            category__is_published=True,
-            pub_date__lte=timezone.now()
-        ).select_related('category', 'location')
+        posts = Post.published.filter(author=profile_user).select_related('category', 'location')
 
     paginator = Paginator(posts, POSTS_PER_PAGE)
     page_number = request.GET.get('page')
@@ -76,26 +90,9 @@ def profile(request, username):
     return render(request, 'blog/profile.html', context)
 
 
-def post_detail(request, id):
+def post_detail(request, post_id):
     """Страница поста с комментариями."""
-    # Автор может видеть свои неопубликованные посты
-    if request.user.is_authenticated:
-        post = get_object_or_404(Post, id=id)
-        if post.author != request.user and (
-            not post.is_published
-            or not post.category.is_published
-            or post.pub_date > timezone.now()
-        ):
-            raise Http404
-    else:
-        post = get_object_or_404(
-            Post.objects.filter(
-                is_published=True,
-                category__is_published=True,
-                pub_date__lte=timezone.now()
-            ),
-            id=id
-        )
+    post = get_post_or_404(post_id, request.user)
 
     comments = post.comments.all()
 
@@ -132,18 +129,18 @@ def post_create(request):
     return render(request, 'blog/create.html', context)
 
 
-def post_edit(request, id):
+def post_edit(request, post_id):
     """Редактирование поста."""
-    post = get_object_or_404(Post, id=id)
+    post = get_object_or_404(Post, id=post_id)
 
     if post.author != request.user:
-        return redirect('blog:post_detail', id=id)
+        return redirect('blog:post_detail', post_id=post_id)
 
     if request.method == 'POST':
         form = PostForm(request.POST, request.FILES, instance=post)
         if form.is_valid():
             post = form.save()
-            return redirect('blog:post_detail', id=post.id)
+            return redirect('blog:post_detail', post_id=post.id)
     else:
         form = PostForm(instance=post)
 
@@ -152,12 +149,12 @@ def post_edit(request, id):
 
 
 @login_required
-def post_delete(request, id):
+def post_delete(request, post_id):
     """Удаление поста."""
-    post = get_object_or_404(Post, id=id)
+    post = get_object_or_404(Post, id=post_id)
 
     if post.author != request.user:
-        return redirect('blog:post_detail', id=id)
+        return redirect('blog:post_detail', post_id=post_id)
 
     if request.method == 'POST':
         username = post.author.username
@@ -169,9 +166,9 @@ def post_delete(request, id):
 
 
 @login_required
-def comment_create(request, id):
+def comment_create(request, post_id):
     """Добавление комментария."""
-    post = get_object_or_404(Post, id=id)
+    post = get_object_or_404(Post, id=post_id)
 
     if request.method == 'POST':
         form = CommentForm(request.POST)
@@ -180,7 +177,7 @@ def comment_create(request, id):
             comment.post = post
             comment.author = request.user
             comment.save()
-            return redirect('blog:post_detail', id=id)
+            return redirect('blog:post_detail', post_id=post_id)
     else:
         form = CommentForm()
 
@@ -189,18 +186,18 @@ def comment_create(request, id):
 
 
 @login_required
-def comment_edit(request, id, comment_id):
+def comment_edit(request, post_id, comment_id):
     """Редактирование комментария."""
-    comment = get_object_or_404(Comment, id=comment_id, post_id=id)
+    comment = get_object_or_404(Comment, id=comment_id, post_id=post_id)
 
     if comment.author != request.user:
-        return redirect('blog:post_detail', id=id)
+        return redirect('blog:post_detail', post_id=post_id)
 
     if request.method == 'POST':
         form = CommentForm(request.POST, instance=comment)
         if form.is_valid():
             comment = form.save()
-            return redirect('blog:post_detail', id=id)
+            return redirect('blog:post_detail', post_id=post_id)
     else:
         form = CommentForm(instance=comment)
 
@@ -209,17 +206,17 @@ def comment_edit(request, id, comment_id):
 
 
 @login_required
-def comment_delete(request, id, comment_id):
+def comment_delete(request, post_id, comment_id):
     """Удаление комментария."""
-    comment = get_object_or_404(Comment, id=comment_id, post_id=id)
+    comment = get_object_or_404(Comment, id=comment_id, post_id=post_id)
     post = comment.post
 
     if comment.author != request.user:
-        return redirect('blog:post_detail', id=id)
+        return redirect('blog:post_detail', post_id=post_id)
 
     if request.method == 'POST':
         comment.delete()
-        return redirect('blog:post_detail', id=id)
+        return redirect('blog:post_detail', post_id=post_id)
 
     context = {'post': post, 'comment': comment}
     return render(request, 'blog/comment.html', context)
