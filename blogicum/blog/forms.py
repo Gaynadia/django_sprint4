@@ -1,40 +1,33 @@
 from django import forms
-from django.contrib.auth.models import User
-from .models import Post, Comment
+from django.utils import timezone
+from .models import Post, Category, Location, Comment
 
 
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        exclude = ('author',)
+        exclude = ['author']
         widgets = {
             'pub_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }
 
-    def clean_title(self):
-        title = self.cleaned_data.get('title', '').strip()
-        if not title:
-            raise forms.ValidationError('Заголовок не может быть пустым.')
-        if len(title) < 5:
-            raise forms.ValidationError('Заголовок должен содержать минимум 5 символов.')
-        return title
-
-    def clean_text(self):
-        text = self.cleaned_data.get('text', '').strip()
-        if not text:
-            raise forms.ValidationError('Текст не может быть пустым.')
-        if len(text) < 20:
-            raise forms.ValidationError('Текст должен содержать минимум 20 символов.')
-        return text
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ограничиваем категории только опубликованными
+        self.fields['category'].queryset = Category.objects.filter(
+            is_published=True)
+        # Ограничиваем местоположения только опубликованными
+        self.fields['location'].queryset = Location.objects.filter(
+            is_published=True)
+        # Устанавливаем начальное значение для pub_date
+        if not self.instance.pk:
+            self.fields['pub_date'].initial = timezone.now()
 
 
 class CommentForm(forms.ModelForm):
     class Meta:
         model = Comment
-        fields = ('text',)
-
-
-class UserForm(forms.ModelForm):
-    class Meta:
-        model = User
-        fields = ('first_name', 'last_name', 'username', 'email')
+        fields = ['text']
+        widgets = {
+            'text': forms.Textarea(attrs={'rows': 3}),
+        }

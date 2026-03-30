@@ -1,28 +1,35 @@
 from django.contrib import admin
-from django.urls import include, path
+from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from blog.views import SignUp
+from pages import views as pages_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    # Пути для работы с пользователями (вход, выход, смена пароля)
+
+    # auth путь + все стандартные страницы login/logout/password_*
     path('auth/', include('django.contrib.auth.urls')),
-    # Переопределяем маршрут регистрации
-    path('auth/registration/', SignUp.as_view(), name='signup'),
-    # Основные маршруты приложения blog
+
+    # регистрация
+    path('auth/registration/', pages_views.registration_view,
+         name='registration'),
+
+    # профиль
+    path('profile/<str:username>/', pages_views.profile_view, name='profile'),
+    path('profile/<str:username>/edit/', pages_views.profile_edit_view,
+         name='profile_edit'),
+
     path('', include('blog.urls')),
-    # Маршруты для статических страниц
     path('pages/', include('pages.urls')),
 ]
 
-# Подключаем кастомные обработчики ошибок
-handler404 = 'pages.views.page_not_found'
-handler500 = 'pages.views.server_error'
-handler403 = 'pages.views.csrf_failure'
-
-# Обслуживание картинок в режиме разработки
 if settings.DEBUG:
     urlpatterns += static(
-        settings.MEDIA_URL, document_root=settings.MEDIA_ROOT
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
     )
+
+# Обработчики ошибок
+handler404 = 'pages.views.page_not_found'
+handler500 = 'pages.views.server_error'
+handler500 = 'pages.views.server_error'

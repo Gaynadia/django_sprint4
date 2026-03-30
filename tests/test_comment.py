@@ -114,7 +114,7 @@ def test_comment(
     post_with_published_location.save()
     _, ctx_form = post_comment_context_form_item
     a_post_get_response = get_a_post_get_response_safely(
-        user_client, post_with_published_location.id
+        user_client, post_with_published_location.slug
     )
 
     # create comments
@@ -262,7 +262,7 @@ def test_404_on_comment_deleted_post(
     post_with_published_location.save()
     _, ctx_form = post_comment_context_form_item
     a_post_get_response = get_a_post_get_response_safely(
-        user_client, post_with_published_location.id
+        user_client, post_with_published_location.slug
     )
     creation_tester = CreateCommentFormTester(
         a_post_get_response,

@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% load django_bootstrap5 %}
 {% block title %}
-  {% if '/edit_comment/' in request.path %}
-    Редактирование комментария
+  {% if comment %}
+    {% if is_delete_confirmation %}
+      Удаление комментария
+    {% else %}
+      Редактирование комментария
+    {% endif %}
   {% else %}
-    Удаление комментария
+    Добавление комментария
   {% endif %}
 {% endblock %}
 {% block content %}
@@ -12,22 +16,30 @@
     <div class="col d-flex justify-content-center">
       <div class="card" style="width: 40rem;">
         <div class="card-header">
-          {% if '/edit_comment/' in request.path %}
-            Редактирование комментария
+          {% if comment %}
+            {% if is_delete_confirmation %}
+              Удаление комментария
+            {% else %}
+              Редактирование комментария
+            {% endif %}
           {% else %}
-            Удаление комментария
+            Добавление комментария
           {% endif %}
         </div>
         <div class="card-body">
-          <form method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            {% if not '/delete_comment/' in request.path %}
+          {% if is_delete_confirmation and comment %}
+            <p class="card-text">{{ comment.text|linebreaksbr }}</p>
+            <form method="post">
+              {% csrf_token %}
+              {% bootstrap_button button_type="submit" content="Удалить" %}
+            </form>
+          {% else %}
+            <form method="post">
+              {% csrf_token %}
               {% bootstrap_form form %}
-            {% else %}
-              <p>{{ form.instance.text }}</p>
-            {% endif %}
-            {% bootstrap_button button_type="submit" content="Отправить" %}
-          </form>
+              {% bootstrap_button button_type="submit" content="Отправить" %}
+            </form>
+          {% endif %}
         </div>
       </div>
     </div>

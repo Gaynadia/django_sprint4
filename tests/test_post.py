@@ -151,7 +151,7 @@ def test_post(
         " несуществующего поста возвращается статус 404."
     )
     try:
-        response = user_client.get(f"/posts/{item_to_delete_adapter.id}/")
+        response = user_client.get(f"/posts/{item_to_delete_adapter.slug}/")
         assert response.status_code == HTTPStatus.NOT_FOUND, (
             err_msg_unexisting_status_404)
     except Post.DoesNotExist:
@@ -207,7 +207,7 @@ def test_post(
             post_adapter.save()
 
     def check_post_access(client, post_adapter, err_msg, expected_status):
-        url = f"/posts/{post_adapter.id}/"
+        url = f"/posts/{post_adapter.slug}/"
         get_get_response_safely(client, url=url, err_msg=err_msg,
                                 expected_status=expected_status)
 
@@ -331,15 +331,15 @@ def _test_edit_post(
     comment_adapter = CommentModelAdapter(comment_to_a_post)
     item_to_edit = comment_adapter.post
     post_adapter = PostModelAdapter(item_to_edit)
-    post_url = f"/posts/{item_to_edit.id}/"
+    post_url = f"/posts/{item_to_edit.slug}/"
     response_on_commented = user_client.get(post_url)
     edit_url, del_url = find_edit_and_delete_urls(
         post_adapter,
         comment_adapter,
         response_on_commented,
         urls_start_with=KeyVal(
-            key=post_url.replace(f"/{item_to_edit.id}/", "/<post_id>/"),
-            val=post_url,
+            key='/posts/<post_id>/',
+            val='/posts/' + str(item_to_edit.id) + '/',
         ),
     )
     assert edit_url.key == f"/posts/{item_to_edit.id}/edit/", (

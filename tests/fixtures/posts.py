@@ -114,7 +114,7 @@ def post_comment_context_form_item(
     user_client: Client, post_with_published_location
 ) -> Tuple[str, BaseForm]:
     response = get_a_post_get_response_safely(
-        user_client, post_with_published_location.id
+        user_client, post_with_published_location.slug
     )
     result: KeyVal = _testget_context_item_by_class(
         response.context,

@@ -258,11 +258,11 @@ def get_get_response_safely(
 
 
 def get_a_post_get_response_safely(
-        user_client: Client, post_id: Union[str, int]
+        user_client: Client, post_slug: str
 ) -> HttpResponse:
     return get_get_response_safely(
         user_client,
-        url=f"/posts/{post_id}/",
+        url=f"/posts/{post_slug}/",
         err_msg=(
             "Убедитесь, что опубликованный пост с опубликованной категорией и"
             " датой публикации в прошлом отображается на странице публикации."

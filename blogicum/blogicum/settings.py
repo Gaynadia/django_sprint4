@@ -3,6 +3,7 @@ from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 TEMPLATES_DIR = BASE_DIR / 'templates'
 
 
@@ -15,7 +16,7 @@ SECRET_KEY = 'django-insecure-@z$1h)@r!u54nc+@t&btn$$2fj^58$eg5tc$bulwdoucg4&d2w
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['testserver']
 
 
 # Application definition
@@ -27,9 +28,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_bootstrap5',
     'pages.apps.PagesConfig',
     'blog.apps.BlogConfig',
+    'django_bootstrap5',
 ]
 
 MIDDLEWARE = [
@@ -47,7 +48,7 @@ ROOT_URLCONF = 'blogicum.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [TEMPLATES_DIR],
+        'DIRS': [BASE_DIR / 'templates'],  # Убедитесь, что этот путь есть
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -55,6 +56,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'django.template.context_processors.csrf',  # Важно для CSRF!
             ],
         },
     },
@@ -116,21 +118,23 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',  # путь к blogicum/static
 ]
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# В конец файла settings.py
+LOGIN_URL = '/auth/login/'
 
-# Для сохранения писем в папку
+# Обработка ошибок
+CSRF_FAILURE_VIEW = 'pages.views.csrf_failure'
+
+# Для продакшена важно установить DEBUG = False
+# DEBUG = False  # Раскомментируйте для тестирования ошибок
+
+# Email settings
 EMAIL_BACKEND = 'django.core.mail.backends.filebased.EmailBackend'
 EMAIL_FILE_PATH = BASE_DIR / 'sent_emails'
-
-# Для работы с изображениями
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Перенаправление после логина/логаута
-LOGIN_REDIRECT_URL = 'blog:index'
-LOGOUT_REDIRECT_URL = 'blog:index'

@@ -29,6 +29,7 @@ class PostModelAdapter(StudentModelAdapter):
             "is_published",
             "title",
             "text",
+            "slug",
             "pub_date",
             "author",
             "category",
