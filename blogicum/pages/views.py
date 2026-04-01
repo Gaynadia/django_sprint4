@@ -8,9 +8,18 @@ from django.views.decorators.csrf import requires_csrf_token
 from django.views.generic import DetailView, CreateView, UpdateView
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
+from django.db.models import Count
 from django import forms
 
 from .models import FlatPage
+from .forms import FlatPageForm, UserEditForm
+
+
+def get_posts_with_comment_count(posts):
+    """Добавляет comment_count к постам."""
+    for post in posts:
+        post.comment_count = post.comments.count()
+    return posts
 
 
 class FlatPageDetailView(DetailView):
@@ -21,14 +30,14 @@ class FlatPageDetailView(DetailView):
 
 class FlatPageCreateView(LoginRequiredMixin, CreateView):
     model = FlatPage
-    fields = ['title', 'content', 'slug', 'is_published']
+    form_class = FlatPageForm
     template_name = 'pages/flatpage_form.html'
     success_url = reverse_lazy('pages:index')  # или куда-то
 
 
 class FlatPageUpdateView(LoginRequiredMixin, UpdateView):
     model = FlatPage
-    fields = ['title', 'content', 'slug', 'is_published']
+    form_class = FlatPageForm
     template_name = 'pages/flatpage_form.html'
     success_url = reverse_lazy('pages:index')
 
@@ -49,14 +58,11 @@ def server_error(request):
 
 
 def registration_view(request):
-    if request.method == 'POST':
-        form = UserCreationForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            return redirect('blog:index')  # или на профиль
-    else:
-        form = UserCreationForm()
+    form = UserCreationForm(request.POST or None)
+    if form.is_valid():
+        user = form.save()
+        login(request, user)
+        return redirect('blog:index')  # или на профиль
     return render(request, 'registration/registration_form.html',
                   {'form': form})
 
@@ -78,8 +84,7 @@ def profile_view(request, username):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     # Добавляем comment_count для каждого поста
-    for post in page_obj:
-        post.comment_count = post.comments.count()
+    get_posts_with_comment_count(page_obj)
     context = {'author': author, 'page_obj': page_obj}
     return render(request, 'blog/profile.html', context)
 
@@ -89,17 +94,8 @@ def profile_edit_view(request, username):
     if request.user.username != username:
         return redirect('profile', username=username)
     user = request.user
-    if request.method == 'POST':
-        form = UserEditForm(request.POST, instance=user)
-        if form.is_valid():
-            form.save()
-            return redirect('profile', username=username)
-    else:
-        form = UserEditForm(instance=user)
+    form = UserEditForm(request.POST or None, instance=user)
+    if form.is_valid():
+        form.save()
+        return redirect('profile', username=username)
     return render(request, 'blog/profile_edit.html', {'form': form})
-
-
-class UserEditForm(forms.ModelForm):
-    class Meta:
-        model = User
-        fields = ['username', 'first_name', 'last_name', 'email']

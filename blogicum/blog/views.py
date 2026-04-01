@@ -6,16 +6,21 @@ from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
 
 from .models import Post, Comment, Category
-from .forms import PostForm, CommentForm
+from .forms import PostForm, CommentForm, DeleteForm
 
 User = get_user_model()
+
+
+def get_comment_count(post):
+    """Возвращает количество комментариев к посту."""
+    return post.comments.count()
 
 
 def get_posts_queryset(
     is_published=False,
     author=None,
     with_comments=False,
-    order_by='-pub_date'
+    order_by=None
 ):
     """Возвращает queryset постов с фильтрами и опциями."""
     queryset = Post.objects.select_related('category', 'location', 'author')
@@ -29,12 +34,17 @@ def get_posts_queryset(
         queryset = queryset.filter(author=author)
     if with_comments:
         queryset = queryset.annotate(comment_count=Count('comments'))
-    return queryset.order_by(order_by)
+    
+    # Используем Model._meta.ordering если order_by не указан
+    if order_by:
+        queryset = queryset.order_by(order_by)
+    
+    return queryset
 
 
 def index(request):
     """Главная страница с 5 последними опубликованными постами."""
-    posts = get_posts_queryset(is_published=True, with_comments=True)
+    posts = get_posts_queryset(is_published=True, with_comments=True, order_by='-pub_date')
     paginator = Paginator(posts, 10)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -80,7 +90,7 @@ def category_posts(request, category_slug):
     )
 
     post_list = (
-        get_posts_queryset(is_published=True, with_comments=True)
+        get_posts_queryset(is_published=True, with_comments=True, order_by='-pub_date')
         .filter(category=category)
     )
 
@@ -144,7 +154,8 @@ def delete_post(request, post_id):
     post = get_object_or_404(Post, id=post_id)
     if request.user != post.author:
         return redirect('blog:post_detail', post_slug=post.slug)
-    if request.method == 'POST':
+    form = DeleteForm(request.POST or None)
+    if form.is_valid():
         post.delete()
         return redirect('blog:index')
     # На GET показываем страницу поста для подтверждения удаления
@@ -156,7 +167,7 @@ def delete_post(request, post_id):
     context = {
         'post': post,
         'comments': comments,
-        'form': None,
+        'form': form,
         'is_delete_confirmation': True
     }
     return render(request, 'blog/detail.html', context)
@@ -166,16 +177,13 @@ def delete_post(request, post_id):
 def add_comment(request, post_id):
     """Добавление комментария к посту."""
     post = get_object_or_404(Post, id=post_id)
-    if request.method == 'POST':
-        form = CommentForm(request.POST)
-        if form.is_valid():
-            comment = form.save(commit=False)
-            comment.post = post
-            comment.author = request.user
-            comment.save()
-            return redirect('blog:post_detail', post_slug=post.slug)
-    else:
-        form = CommentForm()
+    form = CommentForm(request.POST or None)
+    if form.is_valid():
+        comment = form.save(commit=False)
+        comment.post = post
+        comment.author = request.user
+        comment.save()
+        return redirect('blog:post_detail', post_slug=post.slug)
     context = {'form': form, 'post': post}
     return render(request, 'blog/comment.html', context)
 
@@ -186,13 +194,10 @@ def edit_comment(request, post_id, comment_id):
     comment = get_object_or_404(Comment, id=comment_id, post_id=post_id)
     if request.user != comment.author:
         return redirect('blog:post_detail', post_slug=comment.post.slug)
-    if request.method == 'POST':
-        form = CommentForm(request.POST, instance=comment)
-        if form.is_valid():
-            form.save()
-            return redirect('blog:post_detail', post_slug=comment.post.slug)
-    else:
-        form = CommentForm(instance=comment)
+    form = CommentForm(request.POST or None, instance=comment)
+    if form.is_valid():
+        form.save()
+        return redirect('blog:post_detail', post_slug=comment.post.slug)
     context = {'form': form, 'post': comment.post, 'comment': comment}
     return render(request, 'blog/comment.html', context)
 
@@ -203,13 +208,15 @@ def delete_comment(request, post_id, comment_id):
     comment = get_object_or_404(Comment, id=comment_id, post_id=post_id)
     if request.user != comment.author:
         return redirect('blog:post_detail', post_slug=comment.post.slug)
-    if request.method == 'POST':
+    form = DeleteForm(request.POST or None)
+    if form.is_valid():
         comment.delete()
         return redirect('blog:post_detail', post_slug=comment.post.slug)
     # На GET показываем комментарий для подтверждения удаления
     context = {
         'comment': comment,
         'post': comment.post,
+        'form': form,
         'is_delete_confirmation': True
     }
     return render(request, 'blog/comment.html', context)

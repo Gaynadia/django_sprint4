@@ -31,3 +31,8 @@ class CommentForm(forms.ModelForm):
         widgets = {
             'text': forms.Textarea(attrs={'rows': 3}),
         }
+
+
+class DeleteForm(forms.Form):
+    """Пустая форма для подтверждения удаления."""
+    pass
